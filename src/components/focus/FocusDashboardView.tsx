@@ -1,11 +1,15 @@
 import React, { useState, useCallback, useRef } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { FocusProvider, useFocusStore } from "@/context/FocusContext";
 import { useFlux } from "@/context/FluxContext";
 import { suggestIcon } from "@/components/CreateFolderModal";
+import { useDocuments } from "@/hooks/useDocuments";
 import BackgroundEngine from "./BackgroundEngine";
 import FocusTimer from "./FocusTimer";
 import DesktopFolder from "./DesktopFolder";
+import DesktopDocument from "./DesktopDocument";
 import FolderModal from "./FolderModal";
+import DesktopDocumentViewer from "./DesktopDocumentViewer";
 import MusicWidget from "./MusicWidget";
 import TodaysPlanWidget from "./TodaysPlanWidget";
 import FocusStickyNotes from "./FocusStickyNotes";
@@ -16,6 +20,7 @@ import QuoteOfDay from "./QuoteOfDay";
 import ToolDrawer from "./ToolDrawer";
 import BreathingWidget from "./BreathingWidget";
 import FocusCouncilWidget from "./FocusCouncilWidget";
+import RoutineBuilderWidget from "./RoutineBuilderWidget";
 import ClockEditor from "./ClockEditor";
 import CreateFolderModal from "@/components/CreateFolderModal";
 import {
@@ -50,8 +55,10 @@ const BuildModeGrid = () => (
 const FocusContent = () => {
   const { activeWidgets, systemMode, setFocusStickyNotes, focusStickyNotes } = useFocusStore();
   const { folderTree, createFolder, moveFolder } = useFlux();
+  const { documents: desktopDocs, refetch: refetchDesktopDocs, updateDocument: updateDesktopDoc, removeDocument: removeDesktopDoc } = useDocuments(null);
   const [clockEditorOpen, setClockEditorOpen] = useState(false);
   const [openFolderId, setOpenFolderId] = useState<string | null>(null);
+  const [openDesktopDoc, setOpenDesktopDoc] = useState<import("@/hooks/useDocuments").DbDocument | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [dragState, setDragState] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -80,7 +87,6 @@ const FocusContent = () => {
       ...focusStickyNotes,
       { id: `fn-${Date.now()}`, text: "", color: color.key, x: baseX, y: baseY, rotation, opacity: 1 },
     ]);
-    // Ensure notes widget is active
     if (!activeWidgets.includes("notes")) {
       // Toggle it on via the store if possible
     }
@@ -89,7 +95,6 @@ const FocusContent = () => {
   // Handle drag state changes and nesting on pointer up
   const handleDragStateChange = useCallback((state: { id: string; x: number; y: number } | null) => {
     if (state === null && dragStateRef.current) {
-      // Pointer up — check if the dragged folder's center is within another folder's bounding box
       const prev = dragStateRef.current;
       const draggedId = prev.id;
       const allFolderEls = document.querySelectorAll('.desktop-folder[data-folder-id]');
@@ -117,18 +122,31 @@ const FocusContent = () => {
 
   // Handle drag-out from modal
   const handleCanvasDragOver = useCallback((e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes("modal-folder-id")) {
+    if (e.dataTransfer.types.includes("modal-folder-id") || e.dataTransfer.types.includes("modal-doc-id")) {
       e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
     }
   }, []);
 
-  const handleCanvasDrop = useCallback((e: React.DragEvent) => {
+  const handleCanvasDrop = useCallback(async (e: React.DragEvent) => {
     const modalFolderId = e.dataTransfer.getData("modal-folder-id");
     if (modalFolderId) {
       e.preventDefault();
       moveFolder(modalFolderId, null as any);
+      toast.success("Moved to desktop");
     }
-  }, [moveFolder]);
+    // Document drag-out: move doc to desktop (set folder_id to null)
+    const modalDocId = e.dataTransfer.getData("modal-doc-id");
+    if (modalDocId) {
+      e.preventDefault();
+      await (supabase as any)
+        .from("documents")
+        .update({ folder_id: null })
+        .eq("id", modalDocId);
+      toast.success("Document moved to desktop");
+      refetchDesktopDocs();
+    }
+  }, [moveFolder, refetchDesktopDocs]);
 
   return (
     <div
@@ -172,6 +190,7 @@ const FocusContent = () => {
             {activeWidgets.includes("quote") && <QuoteOfDay key="quote" />}
             {activeWidgets.includes("breathing") && <BreathingWidget key="breathing" />}
             {activeWidgets.includes("council") && <FocusCouncilWidget key="council" />}
+            {activeWidgets.includes("routine") && <RoutineBuilderWidget key="routine" />}
             {activeWidgets.includes("budget-preview") && <FocusBudgetWidget key="budget-preview" />}
             {activeWidgets.includes("savings-ring") && <FocusSavingsWidget key="savings-ring" />}
             {activeWidgets.includes("weekly-workout") && <FocusWorkoutWidget key="weekly-workout" />}
@@ -193,9 +212,32 @@ const FocusContent = () => {
             />
           ))}
 
-          {/* Folder Modal */}
+          {/* Desktop Documents (unfiled) */}
+          {desktopDocs.map((doc) => (
+            <DesktopDocument
+              key={doc.id}
+              doc={doc}
+              onOpen={(d) => setOpenDesktopDoc(d)}
+              onDelete={(id) => { removeDesktopDoc(id); }}
+              onRefetch={refetchDesktopDocs}
+            />
+          ))}
           {openFolderId && (
-            <FolderModal folderId={openFolderId} onClose={() => setOpenFolderId(null)} />
+            <FolderModal folderId={openFolderId} onClose={() => { setOpenFolderId(null); refetchDesktopDocs(); }} />
+          )}
+          {openDesktopDoc && (
+            <DesktopDocumentViewer
+              document={openDesktopDoc}
+              onClose={() => { setOpenDesktopDoc(null); refetchDesktopDocs(); }}
+              onUpdate={(id, updates) => {
+                updateDesktopDoc(id, updates);
+                setOpenDesktopDoc(prev => prev ? { ...prev, ...updates } : null);
+              }}
+              onDelete={(id) => {
+                removeDesktopDoc(id);
+                setOpenDesktopDoc(null);
+              }}
+            />
           )}
         </div>
       </div>
