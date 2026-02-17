@@ -5,6 +5,8 @@ import AuroraBackground from "../components/AuroraBackground";
 import LandingPage from "../components/LandingPage";
 import Dashboard from "../components/Dashboard";
 import CommandPalette from "../components/CommandPalette";
+import KeyboardShortcutsSheet from "../components/KeyboardShortcutsSheet";
+import GlobalSearch from "../components/GlobalSearch";
 import { useFlux } from "@/context/FluxContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,13 +16,13 @@ const Index = () => {
   const { loading } = useFlux();
   const { setTheme } = useTheme();
 
-  const [view, setView] = useState<"landing" | "dashboard">(
-    user ? "dashboard" : "landing"
-  );
+  const [view, setView] = useState<"landing" | "dashboard">("dashboard");
   const [prompt, setPrompt] = useState<string | undefined>();
   const [pendingPlan, setPendingPlan] = useState<any>(null);
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // Sync user name + theme on login
   useEffect(() => {
@@ -60,12 +62,9 @@ const Index = () => {
         sessionStorage.removeItem("flux_pending_prompt");
         setPrompt(stored);
         setView("dashboard");
-      } else if (view === "landing") {
-        setView("dashboard");
       }
-    } else {
-      setView("landing");
     }
+    setView("dashboard");
   }, [user]);
 
   const handleEnter = (text: string) => {
@@ -77,6 +76,14 @@ const Index = () => {
     if ((e.metaKey || e.ctrlKey) && e.key === "k") {
       e.preventDefault();
       setCmdOpen((prev) => !prev);
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key === "?") {
+      e.preventDefault();
+      setShortcutsOpen((prev) => !prev);
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key === "/") {
+      e.preventDefault();
+      setSearchOpen((prev) => !prev);
     }
   }, []);
 
@@ -113,6 +120,8 @@ const Index = () => {
         )}
       </AnimatePresence>
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />
+      <KeyboardShortcutsSheet open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
 };
