@@ -35,7 +35,8 @@ interface FolderModalProps {
 }
 
 const FolderModal = ({ folderId, onClose }: FolderModalProps) => {
-  const { findFolderNode, updateFolder, removeFolder, createFolder, moveFolder } = useFlux();
+  const { findFolderNode, updateFolder, removeFolder, createFolder, moveFolder, getAllFoldersFlat } = useFlux();
+  const modalContentRef = React.useRef<HTMLDivElement>(null);
 
   const [navStack, setNavStack] = useState<string[]>([folderId]);
   const [direction, setDirection] = useState<1 | -1>(1);
@@ -177,13 +178,60 @@ const FolderModal = ({ folderId, onClose }: FolderModalProps) => {
     toast.success("Folder moved");
   };
 
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleRenameSubfolder = (id: string) => {
+    // Navigate into it and trigger rename via the header click
+    const node = findFolderNode(id);
+    if (node) {
+      setNavStack(prev => [...prev, id]);
+      setDirection(1);
+    }
+  };
+
+  const handleDeleteSubfolder = async (id: string) => {
+    await removeFolder(id);
+    toast.success("Folder deleted");
+  };
+
+  const handleDuplicateSubfolder = async (id: string) => {
+    const node = findFolderNode(id);
+    if (!node) return;
+    await createFolder({
+      parent_id: node.parent_id,
+      title: `${node.title} (Copy)`,
+      type: node.type,
+      color: node.color || undefined,
+      icon: node.icon || undefined,
+    });
+    toast.success("Folder duplicated");
+  };
+
+  const handleUpdateSubfolder = (id: string, updates: { color?: string; icon?: string }) => {
+    updateFolder(id, updates);
+  };
+
+  const handleDeleteDocument = async (id: string) => {
+    await removeDocument(id);
+    toast.success("Document deleted");
+  };
+
+  const handleDuplicateDocument = async (doc: DbDocument) => {
+    await createDocument(`${doc.title} (Copy)`, doc.type, currentFolderId);
+    toast.success("Document duplicated");
+  };
+
+  const handleShareDocument = async (doc: DbDocument) => {
+    const url = `${window.location.origin}/?doc=${doc.id}`;
+    try { await navigator.clipboard.writeText(url); toast.success("Link copied"); }
+    catch { toast.info("Link: " + url); }
+  };
+
   if (!currentFolder) return null;
 
   const customIcon = currentFolder.icon ? FOLDER_ICONS.find((i) => i.name === currentFolder.icon) : null;
   const IconComp = customIcon ? customIcon.icon : Folder;
   const iconColor = currentFolder.color || "hsl(var(--muted-foreground))";
-
-  const searchInputRef = React.useRef<HTMLInputElement>(null);
 
   return createPortal(
     <AnimatePresence>
@@ -205,6 +253,7 @@ const FolderModal = ({ folderId, onClose }: FolderModalProps) => {
         className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none"
       >
         <div
+          ref={modalContentRef}
           className="relative w-full max-w-4xl max-h-[85vh] flex flex-col bg-card/80 backdrop-blur-2xl border border-border/50 rounded-2xl shadow-2xl pointer-events-auto overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
@@ -493,11 +542,21 @@ const FolderModal = ({ folderId, onClose }: FolderModalProps) => {
                     loading={docsLoading}
                     viewMode={viewMode}
                     searchQuery={searchQuery}
+                    modalRef={modalContentRef}
                     onOpenSubfolder={drillIn}
                     onOpenDocument={handleOpenDocument}
                     onCreateFolder={handleCreateSubfolder}
                     onCreateDocument={handleCreateDocument}
                     onMoveFolder={handleMoveFolder}
+                    onRenameFolder={handleRenameSubfolder}
+                    onDeleteFolder={handleDeleteSubfolder}
+                    onDuplicateFolder={handleDuplicateSubfolder}
+                    onDeleteDocument={handleDeleteDocument}
+                    onDuplicateDocument={handleDuplicateDocument}
+                    onShareDocument={handleShareDocument}
+                    onUpdateFolder={handleUpdateSubfolder}
+                    allFolders={getAllFoldersFlat()}
+                    currentFolderId={currentFolderId}
                   />
                 </motion.div>
               </AnimatePresence>
