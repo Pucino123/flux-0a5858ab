@@ -46,7 +46,6 @@ interface FocusState {
   quoteFontSize: number;
   widgetMinimalMode: boolean;
   clockFontSize: number;
-  // Clock customization
   clockFont: string;
   clockColor: string;
   clockWeight: number;
@@ -63,6 +62,13 @@ interface FocusState {
   desktopFolderIconStrokeOpacities: Record<string, number>;
   desktopFolderCustomIcons: Record<string, string>;
   desktopFolderBgColors: Record<string, string>;
+  // Document customization (mirrors folder pattern)
+  desktopDocPositions: Record<string, { x: number; y: number }>;
+  desktopDocOpacities: Record<string, number>;
+  desktopDocTitleSizes: Record<string, number>;
+  desktopDocBgColors: Record<string, string>;
+  desktopDocCustomIcons: Record<string, string>;
+  desktopDocIconColors: Record<string, string>;
 }
 
 const DEFAULT_STATE: FocusState = {
@@ -99,6 +105,12 @@ const DEFAULT_STATE: FocusState = {
   desktopFolderIconStrokeOpacities: {},
   desktopFolderCustomIcons: {},
   desktopFolderBgColors: {},
+  desktopDocPositions: {},
+  desktopDocOpacities: {},
+  desktopDocTitleSizes: {},
+  desktopDocBgColors: {},
+  desktopDocCustomIcons: {},
+  desktopDocIconColors: {},
 };
 
 const STORAGE_KEY = "flux-focus-prefs";
@@ -110,32 +122,27 @@ function loadState(): FocusState {
       const parsed = JSON.parse(raw);
       const { widgetOpacity, ...rest } = parsed;
       const merged = { ...DEFAULT_STATE, ...rest };
-      // Fix stale background IDs from removed catalogues
       if (merged.currentBackground && merged.currentBackground.startsWith("min-") ||
           merged.currentBackground?.startsWith("space-") ||
           merged.currentBackground?.startsWith("deep-") ||
           merged.currentBackground?.startsWith("cine-noir")) {
         merged.currentBackground = DEFAULT_STATE.currentBackground;
       }
-      // Clear stale goal text that contains URLs
       if (merged.goalText && /^(https?:\/\/|www\.)/i.test(merged.goalText.trim())) {
         merged.goalText = "";
       }
-      // Ensure numeric fields have valid values
       if (typeof merged.clockFontSize !== "number" || isNaN(merged.clockFontSize)) {
         merged.clockFontSize = DEFAULT_STATE.clockFontSize;
       }
       if (typeof merged.quoteFontSize !== "number" || isNaN(merged.quoteFontSize)) {
         merged.quoteFontSize = DEFAULT_STATE.quoteFontSize;
       }
-      // Ensure sticky notes have opacity field
       if (Array.isArray(merged.focusStickyNotes)) {
         merged.focusStickyNotes = merged.focusStickyNotes.map((n: any) => ({
           ...n,
           opacity: typeof n.opacity === "number" ? n.opacity : 1,
         }));
       }
-      // Sanitize breathing widget position
       const bp = merged.widgetPositions?.breathing;
       if (bp && (isNaN(bp.x) || isNaN(bp.y) || !isFinite(bp.x) || !isFinite(bp.y) || bp.x < -50 || bp.y < -50 || bp.x > 3000 || bp.y > 3000)) {
         delete merged.widgetPositions.breathing;
@@ -188,6 +195,19 @@ interface FocusContextValue extends FocusState {
   updateDesktopFolderCustomIcon: (folderId: string, url: string) => void;
   desktopFolderBgColors: Record<string, string>;
   updateDesktopFolderBgColor: (folderId: string, color: string) => void;
+  // Document customization
+  desktopDocPositions: Record<string, { x: number; y: number }>;
+  updateDesktopDocPosition: (docId: string, pos: { x: number; y: number }) => void;
+  desktopDocOpacities: Record<string, number>;
+  updateDesktopDocOpacity: (docId: string, opacity: number) => void;
+  desktopDocTitleSizes: Record<string, number>;
+  updateDesktopDocTitleSize: (docId: string, size: number) => void;
+  desktopDocBgColors: Record<string, string>;
+  updateDesktopDocBgColor: (docId: string, color: string) => void;
+  desktopDocCustomIcons: Record<string, string>;
+  updateDesktopDocCustomIcon: (docId: string, url: string) => void;
+  desktopDocIconColors: Record<string, string>;
+  updateDesktopDocIconColor: (docId: string, color: string) => void;
   resetDashboard: () => void;
 }
 
@@ -302,6 +322,25 @@ export function FocusProvider({ children }: { children: ReactNode }) {
         ...prev,
         desktopFolderBgColors: { ...(prev.desktopFolderBgColors ?? {}), [folderId]: color },
       })),
+    // Document customization
+    desktopDocPositions: state.desktopDocPositions ?? {},
+    updateDesktopDocPosition: (docId, pos) =>
+      setState((prev) => ({ ...prev, desktopDocPositions: { ...(prev.desktopDocPositions ?? {}), [docId]: pos } })),
+    desktopDocOpacities: state.desktopDocOpacities ?? {},
+    updateDesktopDocOpacity: (docId, opacity) =>
+      setState((prev) => ({ ...prev, desktopDocOpacities: { ...(prev.desktopDocOpacities ?? {}), [docId]: opacity } })),
+    desktopDocTitleSizes: state.desktopDocTitleSizes ?? {},
+    updateDesktopDocTitleSize: (docId, size) =>
+      setState((prev) => ({ ...prev, desktopDocTitleSizes: { ...(prev.desktopDocTitleSizes ?? {}), [docId]: size } })),
+    desktopDocBgColors: state.desktopDocBgColors ?? {},
+    updateDesktopDocBgColor: (docId, color) =>
+      setState((prev) => ({ ...prev, desktopDocBgColors: { ...(prev.desktopDocBgColors ?? {}), [docId]: color } })),
+    desktopDocCustomIcons: state.desktopDocCustomIcons ?? {},
+    updateDesktopDocCustomIcon: (docId, url) =>
+      setState((prev) => ({ ...prev, desktopDocCustomIcons: { ...(prev.desktopDocCustomIcons ?? {}), [docId]: url } })),
+    desktopDocIconColors: state.desktopDocIconColors ?? {},
+    updateDesktopDocIconColor: (docId, color) =>
+      setState((prev) => ({ ...prev, desktopDocIconColors: { ...(prev.desktopDocIconColors ?? {}), [docId]: color } })),
     resetDashboard: () => setState({
       ...DEFAULT_STATE,
       currentBackground: state.currentBackground,

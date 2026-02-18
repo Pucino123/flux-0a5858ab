@@ -45,12 +45,12 @@ const DesktopDocument = ({ doc, onOpen, onDelete, onDuplicate, onRefetch }: Desk
   const { user } = useAuth();
   const store = useFocusStore();
   const { folders, createBlock } = useFlux();
-  const pos = (store as any).desktopDocPositions?.[doc.id] ?? { x: 0, y: 0 };
-  const docOpacity = (store as any).desktopDocOpacities?.[doc.id] ?? 1;
-  const titleSize = (store as any).desktopDocTitleSizes?.[doc.id] ?? 10;
-  const bgColor = (store as any).desktopDocBgColors?.[doc.id] ?? "";
-  const customIconUrl = (store as any).desktopDocCustomIcons?.[doc.id] ?? "";
-  const iconColor = (store as any).desktopDocIconColors?.[doc.id] ?? "";
+  const pos = store.desktopDocPositions[doc.id] ?? { x: 0, y: 0 };
+  const docOpacity = store.desktopDocOpacities[doc.id] ?? 1;
+  const titleSize = store.desktopDocTitleSizes[doc.id] ?? 10;
+  const bgColor = store.desktopDocBgColors[doc.id] ?? "";
+  const customIconUrl = store.desktopDocCustomIcons[doc.id] ?? "";
+  const iconColor = store.desktopDocIconColors[doc.id] ?? "";
 
   const isSpreadsheet = doc.type === "spreadsheet";
   const dragging = useRef(false);
@@ -89,13 +89,13 @@ const DesktopDocument = ({ doc, onOpen, onDelete, onDuplicate, onRefetch }: Desk
       didDrag.current = true;
       const nx = Math.max(0, e.clientX - offset.current.x);
       const ny = Math.max(0, e.clientY - offset.current.y);
-      (store as any).updateDesktopDocPosition?.(doc.id, { x: nx, y: ny });
+      store.updateDesktopDocPosition(doc.id, { x: nx, y: ny });
     };
     const onUp = () => { dragging.current = false; };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
     return () => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); };
-  }, [doc.id]);
+  }, [doc.id, store.updateDesktopDocPosition]);
 
   const handleContextMenu = (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); setContextMenu({ x: e.clientX, y: e.clientY }); };
 
@@ -133,13 +133,13 @@ const DesktopDocument = ({ doc, onOpen, onDelete, onDuplicate, onRefetch }: Desk
     const { error } = await supabase.storage.from("folder-icons").upload(path, file, { upsert: true });
     if (error) { toast.error("Upload failed"); return; }
     const { data } = supabase.storage.from("folder-icons").getPublicUrl(path);
-    (store as any).updateDesktopDocCustomIcon?.(doc.id, data.publicUrl);
+    store.updateDesktopDocCustomIcon(doc.id, data.publicUrl);
     toast.success("Custom icon uploaded");
   };
 
   const defaultIconColor = isSpreadsheet ? "hsl(160 84% 39%)" : "hsl(217 91% 60%)";
   const resolvedIconColor = iconColor || defaultIconColor;
-  const storedIconName = (store as any).desktopDocCustomIcons?.[doc.id];
+  const storedIconName = store.desktopDocCustomIcons[doc.id];
   const lucideIcon = storedIconName && !storedIconName.startsWith("http") ? FOLDER_ICONS.find(i => i.name === storedIconName) : null;
   const iconSize = 40;
 
@@ -210,7 +210,7 @@ const DesktopDocument = ({ doc, onOpen, onDelete, onDuplicate, onRefetch }: Desk
             <div className="px-4 py-2.5 border-b border-border/30 flex items-center gap-3">
               <p className="text-[10px] text-muted-foreground uppercase shrink-0 flex items-center gap-1"><Type size={10} /> Title</p>
               <input type="range" min="8" max="18" step="1" value={titleSize}
-                onChange={(e) => { e.stopPropagation(); (store as any).updateDesktopDocTitleSize?.(doc.id, parseInt(e.target.value)); }}
+                onChange={(e) => { e.stopPropagation(); store.updateDesktopDocTitleSize(doc.id, parseInt(e.target.value)); }}
                 onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}
                 className="flex-1 h-1 rounded-full appearance-none bg-secondary cursor-pointer accent-primary" />
               <span className="text-[10px] text-muted-foreground tabular-nums w-7 text-right">{titleSize}px</span>
@@ -293,7 +293,7 @@ const DesktopDocument = ({ doc, onOpen, onDelete, onDuplicate, onRefetch }: Desk
                 </div>
                 <div className="px-4 pb-2">
                   <div className={`grid grid-cols-6 gap-1.5 ${showAllIcons ? 'max-h-[120px] overflow-y-auto' : ''}`}>
-                    <button onClick={() => { (store as any).updateDesktopDocCustomIcon?.(doc.id, ""); }}
+                    <button onClick={() => { store.updateDesktopDocCustomIcon(doc.id, ""); }}
                       className={`p-1.5 rounded-md transition-all hover:scale-110 ${!storedIconName ? "bg-primary/15" : "hover:bg-secondary/60"}`} title="Default">
                       {isSpreadsheet ? <Table size={13} className={!storedIconName ? "text-primary" : "text-muted-foreground"} /> : <FileText size={13} className={!storedIconName ? "text-primary" : "text-muted-foreground"} />}
                     </button>
@@ -301,7 +301,7 @@ const DesktopDocument = ({ doc, onOpen, onDelete, onDuplicate, onRefetch }: Desk
                       const IC = item.icon;
                       const isActive = storedIconName === item.name;
                       return (
-                        <button key={item.name} onClick={() => (store as any).updateDesktopDocCustomIcon?.(doc.id, item.name)}
+                        <button key={item.name} onClick={() => store.updateDesktopDocCustomIcon(doc.id, item.name)}
                           className={`p-1.5 rounded-md transition-all hover:scale-110 ${isActive ? "bg-primary/15" : "hover:bg-secondary/60"}`} title={item.name}>
                           <IC size={13} className={isActive ? "text-primary" : "text-muted-foreground"} />
                         </button>
@@ -327,11 +327,11 @@ const DesktopDocument = ({ doc, onOpen, onDelete, onDuplicate, onRefetch }: Desk
                   <p className="text-[10px] text-muted-foreground uppercase mb-2 flex items-center gap-1"><Palette size={10} /> Color</p>
                   <div className="flex flex-wrap gap-1.5 items-center">
                     {ICON_COLORS.map((c) => (
-                      <button key={c.name} onClick={(e) => { e.stopPropagation(); (store as any).updateDesktopDocIconColor?.(doc.id, c.value); }}
+                      <button key={c.name} onClick={(e) => { e.stopPropagation(); store.updateDesktopDocIconColor(doc.id, c.value); }}
                         className={`rounded-full border-2 transition-all hover:scale-125 ${iconColor === c.value ? "border-foreground/40 scale-110" : "border-transparent"}`}
                         style={{ backgroundColor: c.value, width: 16, height: 16 }} title={c.name} />
                     ))}
-                    <button onClick={(e) => { e.stopPropagation(); (store as any).updateDesktopDocIconColor?.(doc.id, ""); }}
+                    <button onClick={(e) => { e.stopPropagation(); store.updateDesktopDocIconColor(doc.id, ""); }}
                       className={`text-[8px] text-muted-foreground hover:text-foreground px-1 py-0.5 rounded ${!iconColor ? "bg-primary/10" : ""}`}>
                       Reset
                     </button>
@@ -345,11 +345,11 @@ const DesktopDocument = ({ doc, onOpen, onDelete, onDuplicate, onRefetch }: Desk
                 <div className="px-4 pb-4">
                   <p className="text-[10px] text-muted-foreground uppercase mb-2.5">Color</p>
                   <div className="grid grid-cols-4 gap-1.5">
-                    <button onClick={(e) => { e.stopPropagation(); (store as any).updateDesktopDocBgColor?.(doc.id, ""); }}
+                    <button onClick={(e) => { e.stopPropagation(); store.updateDesktopDocBgColor(doc.id, ""); }}
                       className={`rounded-full border-2 transition-all hover:scale-125 ${!bgColor ? "border-foreground/40 scale-110" : "border-transparent"}`}
                       style={{ background: "rgba(22,22,26,0.65)", width: 18, height: 18 }} title="Default" />
                     {BG_COLORS.map((c) => (
-                      <button key={c.name} onClick={(e) => { e.stopPropagation(); (store as any).updateDesktopDocBgColor?.(doc.id, c.value); }}
+                      <button key={c.name} onClick={(e) => { e.stopPropagation(); store.updateDesktopDocBgColor(doc.id, c.value); }}
                         className={`rounded-full border-2 transition-all hover:scale-125 ${bgColor === c.value ? "border-foreground/40 scale-110" : "border-transparent"}`}
                         style={{ backgroundColor: c.value, width: 18, height: 18 }} title={c.name} />
                     ))}
@@ -357,7 +357,7 @@ const DesktopDocument = ({ doc, onOpen, onDelete, onDuplicate, onRefetch }: Desk
                       style={{ width: 18, height: 18 }} title="Custom bg"
                       onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
                       <input type="color" value={bgColor && bgColor.startsWith('#') ? bgColor : "#16161a"}
-                        onChange={(e) => { e.stopPropagation(); (store as any).updateDesktopDocBgColor?.(doc.id, e.target.value); }}
+                        onChange={(e) => { e.stopPropagation(); store.updateDesktopDocBgColor(doc.id, e.target.value); }}
                         onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}
                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
                     </label>
@@ -366,7 +366,7 @@ const DesktopDocument = ({ doc, onOpen, onDelete, onDuplicate, onRefetch }: Desk
                 <div className="px-4 py-2 flex items-center gap-2 overflow-hidden">
                   <p className="text-[10px] text-muted-foreground uppercase w-10 shrink-0">Opacity</p>
                   <input type="range" min="0" max="1" step="0.05" value={docOpacity}
-                    onChange={(e) => { e.stopPropagation(); (store as any).updateDesktopDocOpacity?.(doc.id, parseFloat(e.target.value)); }}
+                    onChange={(e) => { e.stopPropagation(); store.updateDesktopDocOpacity(doc.id, parseFloat(e.target.value)); }}
                     onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}
                     className="flex-1 min-w-0 h-1.5 rounded-full appearance-none bg-secondary cursor-pointer accent-primary" />
                   <span className="text-[10px] text-muted-foreground tabular-nums w-7 text-right shrink-0">{Math.round(docOpacity * 100)}%</span>
@@ -382,3 +382,4 @@ const DesktopDocument = ({ doc, onOpen, onDelete, onDuplicate, onRefetch }: Desk
 };
 
 export default memo(DesktopDocument);
+

@@ -221,6 +221,25 @@ const DesktopFolder = ({ folder, onOpenModal, dragState, onDragStateChange }: De
         onDoubleClick={handleDoubleClick}
         onClick={(e) => { e.stopPropagation(); if (!didDrag.current) setSelected(true); }}
         onContextMenu={handleContextMenu}
+        onDragOver={(e) => {
+          if (e.dataTransfer.types.includes("desktop-doc-id")) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+            setIsDropTarget(true);
+          }
+        }}
+        onDragLeave={() => setIsDropTarget(false)}
+        onDrop={async (e) => {
+          const docId = e.dataTransfer.getData("desktop-doc-id");
+          if (docId) {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDropTarget(false);
+            await (supabase as any).from("documents").update({ folder_id: folder.id }).eq("id", docId);
+            triggerAbsorb();
+            toast.success(`Moved to ${folder.title}`);
+          }
+        }}
       >
         {/* Background layer */}
         {folderOpacity > 0 ? (
