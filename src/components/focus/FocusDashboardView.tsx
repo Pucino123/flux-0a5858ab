@@ -4,6 +4,7 @@ import { FocusProvider, useFocusStore } from "@/context/FocusContext";
 import { useFlux } from "@/context/FluxContext";
 import { suggestIcon } from "@/components/CreateFolderModal";
 import { useDocuments } from "@/hooks/useDocuments";
+import { useAuth } from "@/hooks/useAuth";
 import BackgroundEngine from "./BackgroundEngine";
 import FocusTimer from "./FocusTimer";
 import DesktopFolder from "./DesktopFolder";
@@ -34,8 +35,9 @@ import {
   FocusChatWidget,
 } from "./HomeWidgets";
 import { AnimatePresence, motion } from "framer-motion";
-import { FolderPlus, StickyNote } from "lucide-react";
+import { FolderPlus, StickyNote, FileText, Table } from "lucide-react";
 import { toast } from "sonner";
+
 
 const BuildModeGrid = () => (
   <div className="absolute inset-0 z-10 pointer-events-none" style={{
@@ -55,14 +57,28 @@ const BuildModeGrid = () => (
 const FocusContent = () => {
   const { activeWidgets, systemMode, setFocusStickyNotes, focusStickyNotes } = useFocusStore();
   const { folderTree, createFolder, moveFolder } = useFlux();
-  const { documents: desktopDocs, refetch: refetchDesktopDocs, updateDocument: updateDesktopDoc, removeDocument: removeDesktopDoc } = useDocuments(null);
+  const { user } = useAuth();
+  const { documents: desktopDocs, refetch: refetchDesktopDocs, updateDocument: updateDesktopDoc, removeDocument: removeDesktopDoc, createDocument } = useDocuments(null);
   const [clockEditorOpen, setClockEditorOpen] = useState(false);
   const [openFolderId, setOpenFolderId] = useState<string | null>(null);
   const [openDesktopDoc, setOpenDesktopDoc] = useState<import("@/hooks/useDocuments").DbDocument | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
+  const [showDocPicker, setShowDocPicker] = useState(false);
   const [dragState, setDragState] = useState<{ id: string; x: number; y: number } | null>(null);
   const dragStateRef = useRef<{ id: string; x: number; y: number } | null>(null);
+
+  const handleCreateDocument = useCallback(async (type: "text" | "spreadsheet") => {
+    setShowDocPicker(false);
+    setContextMenu(null);
+    if (!user) return;
+    const title = type === "text" ? "Untitled Document" : "Untitled Spreadsheet";
+    const doc = await createDocument(title, type, null);
+    if (doc) {
+      toast.success(`${type === "text" ? "Document" : "Spreadsheet"} created`);
+      setOpenDesktopDoc(doc);
+    }
+  }, [user, createDocument]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     // Only show on canvas background, not on widgets/folders
@@ -245,29 +261,52 @@ const FocusContent = () => {
       {/* Canvas right-click context menu */}
       {contextMenu && (
         <>
-          <div className="fixed inset-0 z-[90]" onClick={() => setContextMenu(null)} />
+          <div className="fixed inset-0 z-[90]" onClick={() => { setContextMenu(null); setShowDocPicker(false); }} />
           <motion.div
             initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.12 }}
-            className="fixed z-[91] bg-card/80 backdrop-blur-xl border border-border/50 rounded-xl shadow-xl py-1.5 min-w-[160px]"
+            className="fixed z-[91] bg-card/80 backdrop-blur-xl border border-border/50 rounded-xl shadow-xl py-1.5 min-w-[180px]"
             style={{ left: contextMenu.x, top: contextMenu.y }}
           >
             <button
               onClick={() => { setContextMenu(null); setShowCreateFolder(true); }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-secondary/60 transition-colors rounded-lg mx-0"
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-secondary/60 transition-colors rounded-lg"
             >
               <FolderPlus size={14} className="text-muted-foreground" /> New Folder
             </button>
             <button
+              onClick={() => setShowDocPicker(!showDocPicker)}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-secondary/60 transition-colors rounded-lg"
+            >
+              <FileText size={14} className="text-muted-foreground" /> New Document
+            </button>
+            {showDocPicker && (
+              <div className="mx-2 mb-1.5 rounded-lg border border-border/40 overflow-hidden">
+                <button
+                  onClick={() => handleCreateDocument("text")}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-secondary/60 transition-colors"
+                >
+                  <FileText size={13} className="text-primary" /> Text Document
+                </button>
+                <button
+                  onClick={() => handleCreateDocument("spreadsheet")}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-secondary/60 transition-colors"
+                >
+                  <Table size={13} className="text-accent-foreground" /> Spreadsheet
+                </button>
+              </div>
+            )}
+            <button
               onClick={handleAddStickyNote}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-secondary/60 transition-colors rounded-lg mx-0"
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-secondary/60 transition-colors rounded-lg"
             >
               <StickyNote size={14} className="text-muted-foreground" /> New Sticky Note
             </button>
           </motion.div>
         </>
       )}
+
 
       {/* Create folder modal */}
       {showCreateFolder && (
